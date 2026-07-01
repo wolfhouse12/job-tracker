@@ -1,7 +1,7 @@
 "use client";
 
 import { UserButton } from "@clerk/nextjs";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 
 type Application = {
   id: string;
@@ -10,6 +10,7 @@ type Application = {
   status: string;
   appliedAt: string;
   notes: string | null;
+  jobDescription: string | null;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -28,11 +29,24 @@ const STATUS_LABELS: Record<string, string> = {
   REJECTED: "Rejected",
 };
 
+const AI_FEATURES = [
+  { key: "cover-letter", label: "Cover Letter" },
+  { key: "interview-prep", label: "Interview Prep" },
+  { key: "follow-up", label: "Follow-up Email" },
+] as const;
+
+type AiFeature = (typeof AI_FEATURES)[number]["key"];
+
 export default function DashboardPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ company: "", role: "", notes: "" });
+  const [form, setForm] = useState({ company: "", role: "", jobDescription: "", notes: "" });
+
+  const [activeAiRow, setActiveAiRow] = useState<string | null>(null);
+  const [aiFeature, setAiFeature] = useState<AiFeature | null>(null);
+  const [aiContent, setAiContent] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/applications")
@@ -49,7 +63,7 @@ export default function DashboardPage() {
     });
     const newApp = await res.json();
     setApplications([newApp, ...applications]);
-    setForm({ company: "", role: "", notes: "" });
+    setForm({ company: "", role: "", jobDescription: "", notes: "" });
     setShowForm(false);
   }
 
@@ -60,6 +74,32 @@ export default function DashboardPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+  }
+
+  function toggleAiPanel(appId: string) {
+    if (activeAiRow === appId) {
+      setActiveAiRow(null);
+      setAiContent(null);
+      setAiFeature(null);
+    } else {
+      setActiveAiRow(appId);
+      setAiContent(null);
+      setAiFeature(null);
+    }
+  }
+
+  async function generateAiContent(appId: string, feature: AiFeature) {
+    setAiFeature(feature);
+    setAiContent(null);
+    setAiLoading(true);
+    const res = await fetch(`/api/applications/${appId}/ai`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ feature }),
+    });
+    const data = await res.json();
+    setAiContent(data.content ?? data.error ?? "Something went wrong.");
+    setAiLoading(false);
   }
 
   const total = applications.length;
@@ -73,7 +113,7 @@ export default function DashboardPage() {
         <UserButton />
       </nav>
 
-      <div className="max-w-4xl mx-auto px-6 py-10">
+      <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
           <button
@@ -125,12 +165,25 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Job Description
+                <span className="ml-1 text-xs text-gray-400 font-normal">(paste it here for better AI results)</span>
+              </label>
+              <textarea
+                value={form.jobDescription}
+                onChange={(e) => setForm({ ...form, jobDescription: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={4}
+                placeholder="Paste the job description here..."
+              />
+            </div>
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={3}
+                rows={2}
                 placeholder="Referral from John, hybrid role..."
               />
             </div>
@@ -159,31 +212,90 @@ export default function DashboardPage() {
                   <th className="text-left px-6 py-3 text-gray-500 font-medium">Status</th>
                   <th className="text-left px-6 py-3 text-gray-500 font-medium">Applied</th>
                   <th className="text-left px-6 py-3 text-gray-500 font-medium">Notes</th>
+                  <th className="text-left px-6 py-3 text-gray-500 font-medium">AI</th>
                 </tr>
               </thead>
               <tbody>
                 {applications.map((app) => (
-                  <tr key={app.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium text-gray-900">{app.company}</td>
-                    <td className="px-6 py-4 text-gray-600">{app.role}</td>
-                    <td className="px-6 py-4">
-                      <select
-                        value={app.status}
-                        onChange={(e) => updateStatus(app.id, e.target.value)}
-                        className={`rounded-full px-2 py-1 text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[app.status]}`}
-                      >
-                        {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-6 py-4 text-gray-500">
-                      {new Date(app.appliedAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
-                      {app.notes ?? "—"}
-                    </td>
-                  </tr>
+                  <Fragment key={app.id}>
+                    <tr className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                      <td className="px-6 py-4 font-medium text-gray-900">{app.company}</td>
+                      <td className="px-6 py-4 text-gray-600">{app.role}</td>
+                      <td className="px-6 py-4">
+                        <select
+                          value={app.status}
+                          onChange={(e) => updateStatus(app.id, e.target.value)}
+                          className={`rounded-full px-2 py-1 text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[app.status]}`}
+                        >
+                          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-6 py-4 text-gray-500">
+                        {new Date(app.appliedAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-gray-500 max-w-xs truncate">
+                        {app.notes ?? "—"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => toggleAiPanel(app.id)}
+                          className={`rounded-lg px-3 py-1 text-xs font-semibold transition-colors ${
+                            activeAiRow === app.id
+                              ? "bg-purple-600 text-white"
+                              : "bg-purple-100 text-purple-700 hover:bg-purple-200"
+                          }`}
+                        >
+                          {activeAiRow === app.id ? "Close" : "✨ AI"}
+                        </button>
+                      </td>
+                    </tr>
+                    {activeAiRow === app.id && (
+                      <tr className="bg-purple-50 border-b border-gray-100">
+                        <td colSpan={6} className="px-6 py-5">
+                          <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-3">
+                            AI Tools — {app.company} · {app.role}
+                          </p>
+                          <div className="flex gap-2 mb-4">
+                            {AI_FEATURES.map(({ key, label }) => (
+                              <button
+                                key={key}
+                                onClick={() => generateAiContent(app.id, key)}
+                                disabled={aiLoading}
+                                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+                                  aiFeature === key
+                                    ? "bg-purple-600 text-white"
+                                    : "bg-white border border-purple-300 text-purple-700 hover:bg-purple-100"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                          {aiLoading && (
+                            <div className="flex items-center gap-2 text-purple-600 text-sm">
+                              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                              </svg>
+                              Generating...
+                            </div>
+                          )}
+                          {aiContent && !aiLoading && (
+                            <div className="bg-white rounded-lg border border-purple-200 p-4">
+                              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
+                                {aiContent}
+                              </pre>
+                            </div>
+                          )}
+                          {!aiFeature && !aiLoading && (
+                            <p className="text-sm text-gray-400">Select a tool above to generate content.</p>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
