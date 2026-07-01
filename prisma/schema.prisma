@@ -15,6 +15,17 @@ enum ApplicationStatus {
   REJECTED
 }
 
+model Resume {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  text      String
+  fileName  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
 model Application {
   id             String            @id @default(cuid())
   userId         String
