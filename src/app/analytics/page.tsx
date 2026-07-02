@@ -199,7 +199,7 @@ export default function AnalyticsPage() {
                     </Pie>
                     <Tooltip
                       contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: 12 }}
-                      formatter={(value: number, _: string, props: { payload?: { label?: string } }) => [value, props.payload?.label ?? ""]}
+                      formatter={(value, _, props) => [(value as number), (props as { payload?: { label?: string } }).payload?.label ?? ""]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
