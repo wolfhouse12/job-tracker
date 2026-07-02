@@ -167,7 +167,7 @@ export default function AnalyticsPage() {
                     <Tooltip
                       cursor={{ fill: "rgba(148,163,184,0.08)" }}
                       contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: 12 }}
-                      formatter={(value: number) => [value, "Applications"]}
+                      formatter={(value: number | undefined) => [value ?? 0, "Applications"]}
                     />
                     <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                       {pipelineData.map((entry, i) => (
@@ -235,7 +235,7 @@ export default function AnalyticsPage() {
                     <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} width={24} />
                     <Tooltip
                       contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: 12 }}
-                      formatter={(value: number) => [value, "Total applications"]}
+                      formatter={(value: number | undefined) => [value ?? 0, "Total applications"]}
                     />
                     <Area
                       type="monotone"
