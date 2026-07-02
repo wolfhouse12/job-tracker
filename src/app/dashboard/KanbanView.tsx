@@ -16,17 +16,27 @@ type Application = {
 type AiFeature = "cover-letter" | "interview-prep" | "follow-up";
 
 const COLUMNS = [
-  { key: "APPLIED",      label: "Applied",      dot: "bg-blue-400",    header: "bg-blue-50 border-blue-100",      count: "bg-blue-100 text-blue-600" },
-  { key: "PHONE_SCREEN", label: "Phone Screen", dot: "bg-amber-400",   header: "bg-amber-50 border-amber-100",    count: "bg-amber-100 text-amber-600" },
-  { key: "INTERVIEW",    label: "Interview",    dot: "bg-violet-400",  header: "bg-violet-50 border-violet-100",  count: "bg-violet-100 text-violet-600" },
-  { key: "OFFER",        label: "Offer",        dot: "bg-emerald-400", header: "bg-emerald-50 border-emerald-100",count: "bg-emerald-100 text-emerald-600" },
-  { key: "REJECTED",     label: "Rejected",     dot: "bg-red-400",     header: "bg-red-50 border-red-100",        count: "bg-red-100 text-red-500" },
+  { key: "APPLIED",      label: "Applied",      dot: "bg-blue-400",
+    header: "bg-blue-50 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/30",
+    count: "bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400" },
+  { key: "PHONE_SCREEN", label: "Phone Screen", dot: "bg-amber-400",
+    header: "bg-amber-50 border-amber-100 dark:bg-amber-900/20 dark:border-amber-900/30",
+    count: "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400" },
+  { key: "INTERVIEW",    label: "Interview",    dot: "bg-violet-400",
+    header: "bg-violet-50 border-violet-100 dark:bg-violet-900/20 dark:border-violet-900/30",
+    count: "bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400" },
+  { key: "OFFER",        label: "Offer",        dot: "bg-emerald-400",
+    header: "bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30",
+    count: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400" },
+  { key: "REJECTED",     label: "Rejected",     dot: "bg-red-400",
+    header: "bg-red-50 border-red-100 dark:bg-red-900/20 dark:border-red-900/30",
+    count: "bg-red-100 text-red-500 dark:bg-red-900/40 dark:text-red-400" },
 ] as const;
 
 const AI_FEATURES = [
-  { key: "cover-letter"  as AiFeature, label: "Cover Letter",   icon: "📝" },
-  { key: "interview-prep"as AiFeature, label: "Interview Prep", icon: "🎯" },
-  { key: "follow-up"     as AiFeature, label: "Follow-up Email",icon: "✉️" },
+  { key: "cover-letter"   as AiFeature, label: "Cover Letter",    icon: "📝" },
+  { key: "interview-prep" as AiFeature, label: "Interview Prep",  icon: "🎯" },
+  { key: "follow-up"      as AiFeature, label: "Follow-up Email", icon: "✉️" },
 ];
 
 const AVATAR_COLORS = [
@@ -130,7 +140,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                 <div className={`flex items-center justify-between rounded-xl border px-3 py-2.5 mb-3 ${header}`}>
                   <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${dot}`} />
-                    <span className="text-xs font-semibold text-slate-700">{label}</span>
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{label}</span>
                   </div>
                   <span className={`text-xs font-bold rounded-full px-2 py-0.5 ${count}`}>{cards.length}</span>
                 </div>
@@ -141,7 +151,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       className={`min-h-24 rounded-xl transition-colors p-1 ${
-                        snapshot.isDraggingOver ? "bg-violet-50 ring-2 ring-violet-200 ring-dashed" : ""
+                        snapshot.isDraggingOver ? "bg-violet-50 dark:bg-violet-900/20 ring-2 ring-violet-200 dark:ring-violet-700 ring-dashed" : ""
                       }`}
                     >
                       {cards.map((app, index) => (
@@ -151,7 +161,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              className={`bg-white rounded-xl border border-slate-200 p-4 mb-2 select-none transition-shadow group ${
+                              className={`bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 mb-2 select-none transition-shadow group ${
                                 snapshot.isDragging ? "shadow-xl border-violet-300 rotate-1" : "shadow-sm hover:shadow-md"
                               }`}
                             >
@@ -160,19 +170,18 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                                   <span className="text-white text-xs font-bold">{app.company[0].toUpperCase()}</span>
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="font-semibold text-slate-900 text-sm leading-tight truncate">{app.company}</p>
+                                  <p className="font-semibold text-slate-900 dark:text-white text-sm leading-tight truncate">{app.company}</p>
                                   <p className="text-xs text-slate-400 truncate">{app.role}</p>
                                 </div>
                               </div>
 
                               <div className="flex items-center justify-between mb-3">
                                 <span className="text-xs text-slate-400">{timeAgo(app.appliedAt)}</span>
-                                {app.notes && <span className="text-xs text-slate-300" title={app.notes}>📝</span>}
+                                {app.notes && <span className="text-xs text-slate-300 dark:text-slate-600" title={app.notes}>📝</span>}
                               </div>
 
-                              {/* Action buttons — visible on hover */}
                               {deletingId === app.id ? (
-                                <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100">
+                                <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-700/50">
                                   <span className="text-xs text-slate-400 mr-1">Delete?</span>
                                   <button
                                     onClick={() => handleDelete(app.id)}
@@ -182,17 +191,17 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                                   </button>
                                   <button
                                     onClick={() => setDeletingId(null)}
-                                    className="rounded-lg px-2.5 py-1 text-xs font-semibold border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+                                    className="rounded-lg px-2.5 py-1 text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                                   >
                                     Cancel
                                   </button>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-1 pt-2 border-t border-slate-100 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center gap-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
                                     onClick={() => openEdit(app)}
                                     title="Edit"
-                                    className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                                    className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -201,7 +210,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                                   <button
                                     onClick={() => setDeletingId(app.id)}
                                     title="Delete"
-                                    className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                    className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -209,7 +218,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                                   </button>
                                   <button
                                     onClick={() => openAi(app)}
-                                    className="ml-auto rounded-lg px-2.5 py-1 text-xs font-semibold bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors"
+                                    className="ml-auto rounded-lg px-2.5 py-1 text-xs font-semibold bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-colors"
                                   >
                                     ✨ AI
                                   </button>
@@ -221,8 +230,8 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                       ))}
                       {provided.placeholder}
                       {cards.length === 0 && !snapshot.isDraggingOver && (
-                        <div className="flex items-center justify-center h-20 rounded-xl border-2 border-dashed border-slate-200">
-                          <p className="text-xs text-slate-300">Drop here</p>
+                        <div className="flex items-center justify-center h-20 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                          <p className="text-xs text-slate-300 dark:text-slate-600">Drop here</p>
                         </div>
                       )}
                     </div>
@@ -237,17 +246,17 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
       {/* Modal */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
               <div>
                 <p className="text-xs text-slate-400 font-medium">{modal.app.company} · {modal.app.role}</p>
-                <h2 className="font-semibold text-slate-900">
+                <h2 className="font-semibold text-slate-900 dark:text-white">
                   {modal.type === "edit" ? "Edit Application" : "✨ AI Assistant"}
                 </h2>
               </div>
               <button
                 onClick={() => setModal(null)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -265,7 +274,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                         required
                         value={editForm.company}
                         onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
-                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -274,7 +283,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                         required
                         value={editForm.role}
                         onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
-                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -283,7 +292,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                     <textarea
                       value={editForm.jobDescription}
                       onChange={(e) => setEditForm({ ...editForm, jobDescription: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
                       rows={4}
                     />
                   </div>
@@ -292,7 +301,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                     <textarea
                       value={editForm.notes}
                       onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                      className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                      className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
                       rows={2}
                     />
                   </div>
@@ -300,7 +309,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                     <button type="submit" className="rounded-xl bg-violet-600 hover:bg-violet-700 px-5 py-2.5 text-white text-sm font-semibold transition-colors">
                       Save Changes
                     </button>
-                    <button type="button" onClick={() => setModal(null)} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500 hover:bg-slate-50 transition-colors">
+                    <button type="button" onClick={() => setModal(null)} className="rounded-xl border border-slate-200 dark:border-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                       Cancel
                     </button>
                   </div>
@@ -316,7 +325,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                         className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition-all disabled:opacity-50 ${
                           aiFeature === key
                             ? "bg-violet-600 text-white shadow-sm"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            : "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600"
                         }`}
                       >
                         <span>{icon}</span>
@@ -336,7 +345,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                   )}
 
                   {aiContent && !aiLoading && (
-                    <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+                    <div className="bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 p-4">
                       <div className="flex justify-end mb-3">
                         <button
                           onClick={() => {
@@ -344,7 +353,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                             setCopied(true);
                             setTimeout(() => setCopied(false), 2000);
                           }}
-                          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
+                          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-300 border border-slate-200 dark:border-slate-500 bg-white dark:bg-slate-600 hover:bg-slate-50 dark:hover:bg-slate-500 transition-colors"
                         >
                           {copied ? (
                             <><svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>Copied!</>
@@ -353,7 +362,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                           )}
                         </button>
                       </div>
-                      <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{aiContent}</pre>
+                      <pre className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap font-sans leading-relaxed">{aiContent}</pre>
                     </div>
                   )}
 
