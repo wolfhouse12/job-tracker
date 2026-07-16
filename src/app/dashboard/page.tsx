@@ -64,6 +64,7 @@ export default function DashboardPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [form, setForm] = useState({ company: "", role: "", jobDescription: "", notes: "" });
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<string | null>(null);
@@ -80,8 +81,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetch("/api/applications")
-      .then((r) => r.json())
-      .then((data) => { setApplications(data); setLoading(false); });
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load applications");
+        return r.json();
+      })
+      .then((data) => { setApplications(data); setLoading(false); })
+      .catch(() => { setLoadError(true); setLoading(false); });
   }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -379,6 +384,14 @@ export default function DashboardPage() {
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
               Loading...
+            </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center px-6">
+              <p className="font-semibold text-slate-700 dark:text-slate-200 mb-1">Couldn&apos;t load applications</p>
+              <p className="text-sm text-slate-400 mb-3">Something went wrong reaching the server.</p>
+              <button onClick={() => window.location.reload()} className="text-sm text-violet-600 hover:underline">
+                Try again
+              </button>
             </div>
           ) : filteredApplications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-6">
