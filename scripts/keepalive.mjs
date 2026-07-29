@@ -4,7 +4,12 @@
 
 import { Client } from "pg";
 
-const client = new Client({ connectionString: process.env.DATABASE_URL });
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  connectionTimeoutMillis: 10_000,
+  query_timeout: 10_000,
+});
 
 await client.connect();
 const result = await client.query("SELECT 1");
