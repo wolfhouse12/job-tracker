@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import type { ResumeInfo } from "./ResumeUpload";
+import { ResumeSelect } from "./ResumeSelect";
 
 type Application = {
   id: string;
@@ -11,6 +13,7 @@ type Application = {
   appliedAt: string;
   notes: string | null;
   jobDescription: string | null;
+  resumeId: string | null;
 };
 
 type AiFeature = "cover-letter" | "interview-prep" | "follow-up";
@@ -59,15 +62,16 @@ function timeAgo(date: string) {
 
 type Props = {
   applications: Application[];
+  resumes: ResumeInfo[];
   onStatusChange: (id: string, status: string) => void;
-  onEdit: (id: string, data: { company: string; role: string; jobDescription: string; notes: string }) => void;
+  onEdit: (id: string, data: { company: string; role: string; jobDescription: string; notes: string; resumeId: string | null }) => void;
   onDelete: (id: string) => void;
 };
 
-export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: Props) {
+export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDelete }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [modal, setModal] = useState<{ type: "edit" | "ai"; app: Application } | null>(null);
-  const [editForm, setEditForm] = useState({ company: "", role: "", jobDescription: "", notes: "" });
+  const [editForm, setEditForm] = useState({ company: "", role: "", jobDescription: "", notes: "", resumeId: "" });
   const [aiFeature, setAiFeature] = useState<AiFeature | null>(null);
   const [aiContent, setAiContent] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -79,6 +83,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
       role: app.role,
       jobDescription: app.jobDescription ?? "",
       notes: app.notes ?? "",
+      resumeId: app.resumeId ?? "",
     });
     setModal({ type: "edit", app });
   }
@@ -97,7 +102,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editForm),
     });
-    onEdit(modal.app.id, editForm);
+    onEdit(modal.app.id, { ...editForm, resumeId: editForm.resumeId || null });
     setModal(null);
   }
 
@@ -296,7 +301,7 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                       rows={4}
                     />
                   </div>
-                  <div className="mb-6">
+                  <div className="mb-4">
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Notes</label>
                     <textarea
                       value={editForm.notes}
@@ -304,6 +309,9 @@ export function KanbanView({ applications, onStatusChange, onEdit, onDelete }: P
                       className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
                       rows={2}
                     />
+                  </div>
+                  <div className="mb-6">
+                    <ResumeSelect resumes={resumes} value={editForm.resumeId} onChange={(resumeId) => setEditForm({ ...editForm, resumeId })} />
                   </div>
                   <div className="flex gap-3">
                     <button type="submit" className="rounded-xl bg-violet-600 hover:bg-violet-700 px-5 py-2.5 text-white text-sm font-semibold transition-colors">

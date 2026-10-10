@@ -6,12 +6,13 @@ export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const resume = await prisma.resume.findUnique({ where: { userId } });
-  if (!resume) return NextResponse.json({ resume: null });
-
-  return NextResponse.json({
-    resume: { id: resume.id, fileName: resume.fileName, createdAt: resume.createdAt },
+  const resumes = await prisma.resume.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, fileName: true, createdAt: true },
   });
+
+  return NextResponse.json({ resumes });
 }
 
 export async function POST(request: NextRequest) {
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
 
   let text = "";
   let fileName = "resume.txt";
+  let name = "";
 
   if (contentType.includes("application/json")) {
     // Plain text paste
@@ -31,10 +33,13 @@ export async function POST(request: NextRequest) {
     }
     text = body.text.trim();
     fileName = "resume (pasted text)";
+    name = typeof body.name === "string" ? body.name : "";
   } else {
     // PDF upload
     const formData = await request.formData();
     const file = formData.get("resume") as File | null;
+    const nameField = formData.get("name");
+    name = typeof nameField === "string" ? nameField : "";
 
     if (!file) return NextResponse.json({ error: "No file provided." }, { status: 400 });
     if (!file.name.toLowerCase().endsWith(".pdf")) return NextResponse.json({ error: "Only PDF files are supported." }, { status: 400 });
@@ -63,19 +68,12 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const resume = await prisma.resume.upsert({
-    where: { userId },
-    update: { text, fileName },
-    create: { userId, text, fileName },
+  // A user-given name ("English", "Hebrew") beats the file name
+  if (name.trim()) fileName = name.trim().slice(0, 100);
+
+  const resume = await prisma.resume.create({
+    data: { userId, text, fileName },
   });
 
   return NextResponse.json({ id: resume.id, fileName: resume.fileName, createdAt: resume.createdAt });
-}
-
-export async function DELETE() {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  await prisma.resume.deleteMany({ where: { userId } });
-  return NextResponse.json({ success: true });
 }

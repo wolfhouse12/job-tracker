@@ -16,12 +16,13 @@ enum ApplicationStatus {
 }
 
 model Resume {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  text      String
-  fileName  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String        @id @default(cuid())
+  userId       String
+  text         String
+  fileName     String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  applications Application[]
 
   @@index([userId])
 }
@@ -34,9 +35,12 @@ model Application {
   status         ApplicationStatus @default(APPLIED)
   jobDescription String?
   notes          String?
+  resumeId       String?
+  resume         Resume?           @relation(fields: [resumeId], references: [id], onDelete: SetNull)
   appliedAt      DateTime          @default(now())
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
   @@index([userId])
+  @@index([resumeId])
 }

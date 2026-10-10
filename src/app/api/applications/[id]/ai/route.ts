@@ -95,14 +95,16 @@ export async function POST(
     return NextResponse.json({ error: "Invalid feature" }, { status: 400 });
   }
 
-  const [application, resume] = await Promise.all([
-    prisma.application.findFirst({ where: { id, userId } }),
-    prisma.resume.findUnique({ where: { userId } }),
-  ]);
+  const application = await prisma.application.findFirst({ where: { id, userId } });
 
   if (!application) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  // Use the resume sent for this job; if none was picked, fall back to the latest one
+  const resume = application.resumeId
+    ? await prisma.resume.findFirst({ where: { id: application.resumeId, userId } })
+    : await prisma.resume.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } });
 
   const { company, role, jobDescription, notes } = application;
   const prompt = buildPrompt(feature, company, role, jobDescription, notes, resume?.text ?? null);
@@ -120,3 +122,4 @@ export async function POST(
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+ 

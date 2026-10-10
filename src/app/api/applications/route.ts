@@ -19,14 +19,20 @@ export async function POST(request: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json();
-  const { company, role, jobDescription, notes } = body;
+  const { company, role, jobDescription, notes, resumeId } = body;
 
   if (!company || !role) {
     return NextResponse.json({ error: "Company and role are required" }, { status: 400 });
   }
 
+  // Only link a resume that belongs to this user
+  if (resumeId) {
+    const owned = await prisma.resume.findFirst({ where: { id: resumeId, userId } });
+    if (!owned) return NextResponse.json({ error: "Resume not found" }, { status: 400 });
+  }
+
   const application = await prisma.application.create({
-    data: { userId, company, role, jobDescription, notes },
+    data: { userId, company, role, jobDescription, notes, resumeId: resumeId || null },
   });
 
   return NextResponse.json(application, { status: 201 });

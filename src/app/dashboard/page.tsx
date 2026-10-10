@@ -4,7 +4,8 @@ import { UserButton } from "@clerk/nextjs";
 import { useState, useEffect, Fragment } from "react";
 import Link from "next/link";
 import { KanbanView } from "./KanbanView";
-import { ResumeUpload } from "./ResumeUpload";
+import { ResumeUpload, type ResumeInfo } from "./ResumeUpload";
+import { ResumeSelect } from "./ResumeSelect";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 type Application = {
@@ -15,6 +16,7 @@ type Application = {
   appliedAt: string;
   notes: string | null;
   jobDescription: string | null;
+  resumeId: string | null;
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -65,10 +67,10 @@ export default function DashboardPage() {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [form, setForm] = useState({ company: "", role: "", jobDescription: "", notes: "" });
+  const [form, setForm] = useState({ company: "", role: "", jobDescription: "", notes: "", resumeId: "" });
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ company: "", role: "", jobDescription: "", notes: "" });
+  const [editForm, setEditForm] = useState({ company: "", role: "", jobDescription: "", notes: "", resumeId: "" });
   const [deletingRow, setDeletingRow] = useState<string | null>(null);
   const [view, setView] = useState<"table" | "kanban">("table");
   const [search, setSearch] = useState("");
@@ -78,6 +80,13 @@ export default function DashboardPage() {
   const [aiContent, setAiContent] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [resumes, setResumes] = useState<ResumeInfo[]>([]);
+
+  useEffect(() => {
+    fetch("/api/resume")
+      .then((r) => r.json())
+      .then((data) => setResumes(data.resumes ?? []));
+  }, []);
 
   useEffect(() => {
     fetch("/api/applications")
@@ -98,7 +107,7 @@ export default function DashboardPage() {
     });
     const newApp = await res.json();
     setApplications([newApp, ...applications]);
-    setForm({ company: "", role: "", jobDescription: "", notes: "" });
+    setForm({ company: "", role: "", jobDescription: "", notes: "", resumeId: "" });
     setShowForm(false);
   }
 
@@ -117,6 +126,7 @@ export default function DashboardPage() {
       role: app.role,
       jobDescription: app.jobDescription ?? "",
       notes: app.notes ?? "",
+      resumeId: app.resumeId ?? "",
     });
     setEditingRow(app.id);
     setExpandedRow(app.id);
@@ -129,7 +139,7 @@ export default function DashboardPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(editForm),
     });
-    setApplications(applications.map((a) => a.id === appId ? { ...a, ...editForm } : a));
+    setApplications(applications.map((a) => a.id === appId ? { ...a, ...editForm, resumeId: editForm.resumeId || null } : a));
     setEditingRow(null);
   }
 
@@ -157,6 +167,16 @@ export default function DashboardPage() {
     const data = await res.json();
     setAiContent(data.content ?? data.error ?? "Something went wrong.");
     setAiLoading(false);
+  }
+
+  function handleResumeRemoved(id: string) {
+    setResumes((prev) => prev.filter((r) => r.id !== id));
+    // Mirror the database's onDelete: SetNull
+    setApplications((prev) => prev.map((a) => a.resumeId === id ? { ...a, resumeId: null } : a));
+  }
+
+  function resumeName(resumeId: string | null) {
+    return resumes.find((r) => r.id === resumeId)?.fileName ?? null;
   }
 
   const filteredApplications = applications.filter((app) => {
@@ -352,6 +372,9 @@ export default function DashboardPage() {
                   placeholder="Referral from John, hybrid role..."
                 />
               </div>
+              <div className="mb-5 sm:w-1/2">
+                <ResumeSelect resumes={resumes} value={form.resumeId} onChange={(resumeId) => setForm({ ...form, resumeId })} />
+              </div>
               <div className="flex gap-3">
                 <button type="submit" className="rounded-xl bg-violet-600 hover:bg-violet-700 px-5 py-2.5 text-white text-sm font-semibold transition-colors">
                   Save Application
@@ -364,11 +387,16 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <ResumeUpload />
+        <ResumeUpload
+          resumes={resumes}
+          onAdded={(r) => setResumes((prev) => [...prev, r])}
+          onRemoved={handleResumeRemoved}
+        />
 
         {view === "kanban" && (
           <KanbanView
             applications={filteredApplications}
+            resumes={resumes}
             onStatusChange={updateStatus}
             onEdit={(id, data) => setApplications((prev) => prev.map((a) => a.id === id ? { ...a, ...data } : a))}
             onDelete={(id) => setApplications((prev) => prev.filter((a) => a.id !== id))}
@@ -525,6 +553,9 @@ export default function DashboardPage() {
                                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Notes</label>
                                   <textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" rows={2} />
                                 </div>
+                                <div className="mb-4 sm:w-1/2">
+                                  <ResumeSelect resumes={resumes} value={editForm.resumeId} onChange={(resumeId) => setEditForm({ ...editForm, resumeId })} />
+                                </div>
                                 <div className="flex gap-3">
                                   <button type="submit" className="rounded-xl bg-violet-600 hover:bg-violet-700 px-4 py-2 text-white text-sm font-semibold transition-colors">Save Changes</button>
                                   <button type="button" onClick={() => setEditingRow(null)} className="rounded-xl border border-slate-200 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">Cancel</button>
@@ -532,6 +563,12 @@ export default function DashboardPage() {
                               </form>
                             ) : (
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                <div className="sm:col-span-2">
+                                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Resume Sent</p>
+                                  <p className="text-sm text-slate-700 dark:text-slate-200">
+                                    {resumeName(app.resumeId) ?? <span className="text-slate-300 dark:text-slate-500 italic">Not specified.</span>}
+                                  </p>
+                                </div>
                                 <div>
                                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Notes</p>
                                   <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">

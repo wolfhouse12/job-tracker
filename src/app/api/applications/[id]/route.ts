@@ -11,7 +11,7 @@ export async function PATCH(
 
   const { id } = await props.params;
   const body = await request.json();
-  const { status, company, role, jobDescription, notes } = body;
+  const { status, company, role, jobDescription, notes, resumeId } = body;
 
   const data: Record<string, string | null> = {};
   if (status !== undefined) data.status = status;
@@ -19,6 +19,14 @@ export async function PATCH(
   if (role !== undefined) data.role = role;
   if (jobDescription !== undefined) data.jobDescription = jobDescription;
   if (notes !== undefined) data.notes = notes;
+  if (resumeId !== undefined) {
+    // Only link a resume that belongs to this user; "" or null clears it
+    if (resumeId) {
+      const owned = await prisma.resume.findFirst({ where: { id: resumeId, userId } });
+      if (!owned) return NextResponse.json({ error: "Resume not found" }, { status: 400 });
+    }
+    data.resumeId = resumeId || null;
+  }
 
   const application = await prisma.application.updateMany({
     where: { id, userId },
