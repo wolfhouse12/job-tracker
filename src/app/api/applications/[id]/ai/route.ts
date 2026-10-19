@@ -1,9 +1,16 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { readJson } from "@/lib/validation";
 import Groq from "groq-sdk";
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY! });
+const FEATURES = ["cover-letter", "interview-prep", "follow-up", "optimize"];
+
+let groq: Groq | null = null;
+function getGroq() {
+  groq ??= new Groq({ apiKey: process.env.GROQ_API_KEY });
+  return groq;
+}
 
 function buildPrompt(
   feature: string,
@@ -89,9 +96,10 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await props.params;
-  const { feature } = await request.json();
+  const body = await readJson(request);
+  const feature = body?.feature;
 
-  if (!["cover-letter", "interview-prep", "follow-up", "optimize"].includes(feature)) {
+  if (typeof feature !== "string" || !FEATURES.includes(feature)) {
     return NextResponse.json({ error: "Invalid feature" }, { status: 400 });
   }
 
@@ -110,16 +118,19 @@ export async function POST(
   const prompt = buildPrompt(feature, company, role, jobDescription, notes, resume?.text ?? null);
 
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await getGroq().chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
     });
     const content = completion.choices[0]?.message?.content ?? "";
     return NextResponse.json({ content });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[AI route error]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    // The provider's error can include request details, so it goes to the server log only.
+    console.error("[AI route error]", err instanceof Error ? err.message : String(err));
+    return NextResponse.json(
+      { error: "The AI service is unavailable right now. Please try again in a minute." },
+      { status: 502 }
+    );
   }
 }
  

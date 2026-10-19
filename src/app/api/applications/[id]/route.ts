@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { parseApplicationInput, readJson } from "@/lib/validation";
 
 export async function PATCH(
   request: NextRequest,
@@ -10,22 +11,17 @@ export async function PATCH(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await props.params;
-  const body = await request.json();
-  const { status, company, role, jobDescription, notes, resumeId } = body;
+  const body = await readJson(request);
+  if (!body) return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
 
-  const data: Record<string, string | null> = {};
-  if (status !== undefined) data.status = status;
-  if (company !== undefined) data.company = company;
-  if (role !== undefined) data.role = role;
-  if (jobDescription !== undefined) data.jobDescription = jobDescription;
-  if (notes !== undefined) data.notes = notes;
-  if (resumeId !== undefined) {
-    // Only link a resume that belongs to this user; "" or null clears it
-    if (resumeId) {
-      const owned = await prisma.resume.findFirst({ where: { id: resumeId, userId } });
-      if (!owned) return NextResponse.json({ error: "Resume not found" }, { status: 400 });
-    }
-    data.resumeId = resumeId || null;
+  const parsed = parseApplicationInput(body, true);
+  if ("error" in parsed) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const { data } = parsed;
+
+  // Only link a resume that belongs to this user; "" or null clears it
+  if (data.resumeId) {
+    const owned = await prisma.resume.findFirst({ where: { id: data.resumeId, userId } });
+    if (!owned) return NextResponse.json({ error: "Resume not found" }, { status: 400 });
   }
 
   const application = await prisma.application.updateMany({

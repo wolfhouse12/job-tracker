@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { sendJson } from "@/lib/send-json";
 
 export type ResumeInfo = { id: string; fileName: string; createdAt: string };
 
@@ -36,10 +37,14 @@ export function ResumeUpload({ resumes, onAdded, onRemoved }: Props) {
     const formData = new FormData();
     formData.append("resume", file);
     formData.append("name", name);
-    const res = await fetch("/api/resume", { method: "POST", body: formData });
-    const data = await res.json();
-    if (res.ok) { finishAdd(data); }
-    else { setError(data.error ?? "Upload failed."); }
+    try {
+      const res = await fetch("/api/resume", { method: "POST", body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) { finishAdd(data); }
+      else { setError(data.error ?? "Upload failed."); }
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
+    }
     setUploading(false);
   }
 
@@ -47,21 +52,17 @@ export function ResumeUpload({ resumes, onAdded, onRemoved }: Props) {
     if (pasteText.trim().length < 50) { setError("Please paste more text — at least a few lines of your resume."); return; }
     setUploading(true);
     setError(null);
-    const res = await fetch("/api/resume", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: pasteText, name }),
-    });
-    const data = await res.json();
-    if (res.ok) { finishAdd(data); }
-    else { setError(data.error ?? "Save failed."); }
+    const res = await sendJson("/api/resume", "POST", { text: pasteText, name });
+    if (res.ok) { finishAdd(res.data as ResumeInfo); }
+    else { setError(res.error); }
     setUploading(false);
   }
 
   async function handleDelete(id: string) {
-    await fetch(`/api/resume/${id}`, { method: "DELETE" });
-    onRemoved(id);
+    const res = await sendJson(`/api/resume/${id}`, "DELETE");
     setRemovingId(null);
+    if (!res.ok) { setError(res.error); return; }
+    onRemoved(id);
   }
 
   const showUploader = adding || resumes.length === 0;
@@ -122,15 +123,20 @@ export function ResumeUpload({ resumes, onAdded, onRemoved }: Props) {
         </ul>
       )}
 
+      {error && !showUploader && (
+        <p role="alert" className="mt-3 text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>
+      )}
+
       {showUploader && (
         <div>
           {/* Name */}
           <div className="mb-4">
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+            <label htmlFor="resume-name" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
               Name
               <span className="ml-2 normal-case font-normal text-slate-300 dark:text-slate-500">optional — defaults to the file name</span>
             </label>
             <input
+              id="resume-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={100}
@@ -162,6 +168,11 @@ export function ResumeUpload({ resumes, onAdded, onRemoved }: Props) {
               onDragLeave={() => setDragging(false)}
               onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
               onClick={() => inputRef.current?.click()}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); inputRef.current?.click(); } }}
+              role="button"
+              tabIndex={0}
+              aria-label="Upload a PDF resume"
+              aria-busy={uploading}
               className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-8 cursor-pointer transition-colors ${
                 dragging ? "border-violet-400 bg-violet-50 dark:bg-violet-900/20" : "border-slate-200 dark:border-slate-600 hover:border-violet-300 hover:bg-slate-50 dark:hover:bg-slate-700/50"
               }`}
@@ -187,6 +198,8 @@ export function ResumeUpload({ resumes, onAdded, onRemoved }: Props) {
           ) : (
             <div>
               <textarea
+                aria-label="Resume text"
+                maxLength={50000}
                 value={pasteText}
                 onChange={(e) => setPasteText(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-3 text-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
@@ -204,7 +217,7 @@ export function ResumeUpload({ resumes, onAdded, onRemoved }: Props) {
           )}
 
           {error && (
-            <p className="mt-3 text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>
+            <p role="alert" className="mt-3 text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>
           )}
 
           {resumes.length > 0 && (

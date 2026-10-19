@@ -7,6 +7,8 @@ import { KanbanView } from "./KanbanView";
 import { ResumeUpload, type ResumeInfo } from "./ResumeUpload";
 import { ResumeSelect } from "./ResumeSelect";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { sendJson } from "@/lib/send-json";
+import { DeleteAccount } from "./DeleteAccount";
 
 type Application = {
   id: string;
@@ -81,11 +83,17 @@ export default function DashboardPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [resumes, setResumes] = useState<ResumeInfo[]>([]);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch("/api/resume")
-      .then((r) => r.json())
-      .then((data) => setResumes(data.resumes ?? []));
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load resumes");
+        return r.json();
+      })
+      .then((data) => setResumes(data.resumes ?? []))
+      .catch(() => setActionError("Couldn't load your resumes. Refresh the page to try again."));
   }, []);
 
   useEffect(() => {
@@ -100,24 +108,24 @@ export default function DashboardPage() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const res = await fetch("/api/applications", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const newApp = await res.json();
-    setApplications([newApp, ...applications]);
+    setSaving(true);
+    setActionError(null);
+    const res = await sendJson("/api/applications", "POST", form);
+    setSaving(false);
+    if (!res.ok) { setActionError(res.error); return; }
+    setApplications((prev) => [res.data as Application, ...prev]);
     setForm({ company: "", role: "", jobDescription: "", notes: "", resumeId: "" });
     setShowForm(false);
   }
 
   async function updateStatus(id: string, status: string) {
-    setApplications(applications.map((a) => a.id === id ? { ...a, status } : a));
-    await fetch(`/api/applications/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
+    const previous = applications.find((a) => a.id === id)?.status;
+    setApplications((prev) => prev.map((a) => a.id === id ? { ...a, status } : a));
+    const res = await sendJson(`/api/applications/${id}`, "PATCH", { status });
+    if (!res.ok && previous) {
+      setApplications((prev) => prev.map((a) => a.id === id ? { ...a, status: previous } : a));
+      setActionError(res.error);
+    }
   }
 
   function startEdit(app: Application) {
@@ -134,19 +142,19 @@ export default function DashboardPage() {
 
   async function handleEdit(e: React.FormEvent<HTMLFormElement>, appId: string) {
     e.preventDefault();
-    await fetch(`/api/applications/${appId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
-    });
-    setApplications(applications.map((a) => a.id === appId ? { ...a, ...editForm, resumeId: editForm.resumeId || null } : a));
+    setSaving(true);
+    const res = await sendJson(`/api/applications/${appId}`, "PATCH", editForm);
+    setSaving(false);
+    if (!res.ok) { setActionError(res.error); return; }
+    setApplications((prev) => prev.map((a) => a.id === appId ? { ...a, ...editForm, resumeId: editForm.resumeId || null } : a));
     setEditingRow(null);
   }
 
   async function handleDelete(appId: string) {
-    await fetch(`/api/applications/${appId}`, { method: "DELETE" });
-    setApplications(applications.filter((a) => a.id !== appId));
+    const res = await sendJson(`/api/applications/${appId}`, "DELETE");
     setDeletingRow(null);
+    if (!res.ok) { setActionError(res.error); return; }
+    setApplications((prev) => prev.filter((a) => a.id !== appId));
   }
 
   function toggleAiPanel(appId: string) {
@@ -159,13 +167,8 @@ export default function DashboardPage() {
 
   async function generateAiContent(appId: string, feature: AiFeature) {
     setAiFeature(feature); setAiContent(null); setAiLoading(true);
-    const res = await fetch(`/api/applications/${appId}/ai`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ feature }),
-    });
-    const data = await res.json();
-    setAiContent(data.content ?? data.error ?? "Something went wrong.");
+    const res = await sendJson(`/api/applications/${appId}/ai`, "POST", { feature });
+    setAiContent(res.ok ? (res.data as { content: string }).content || "No response was generated." : res.error);
     setAiLoading(false);
   }
 
@@ -244,6 +247,13 @@ export default function DashboardPage() {
       {/* Content */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-5">
 
+        {actionError && (
+          <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 px-4 py-3 mb-4 text-sm text-red-700 dark:text-red-300">
+            <span>{actionError}</span>
+            <button onClick={() => setActionError(null)} aria-label="Dismiss error" className="font-semibold hover:underline">✕</button>
+          </div>
+        )}
+
         {/* View toggle + Add button */}
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 rounded-xl p-1 w-fit">
@@ -283,10 +293,11 @@ export default function DashboardPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search company or role..."
+              aria-label="Search company or role"
               className="w-full rounded-xl border border-slate-200 dark:border-slate-600 pl-9 pr-4 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-white dark:bg-slate-700 shadow-sm"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+              <button onClick={() => setSearch("")} aria-label="Clear search" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -329,9 +340,11 @@ export default function DashboardPage() {
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Company *</label>
+                  <label htmlFor="new-company" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Company *</label>
                   <input
+                    id="new-company"
                     required
+                    maxLength={200}
                     value={form.company}
                     onChange={(e) => setForm({ ...form, company: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
@@ -339,9 +352,11 @@ export default function DashboardPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Role *</label>
+                  <label htmlFor="new-role" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Role *</label>
                   <input
+                    id="new-role"
                     required
+                    maxLength={200}
                     value={form.role}
                     onChange={(e) => setForm({ ...form, role: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
@@ -350,11 +365,13 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="mb-4">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                <label htmlFor="new-jd" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
                   Job Description
                   <span className="ml-2 normal-case font-normal text-slate-300 dark:text-slate-500">paste for better AI results</span>
                 </label>
                 <textarea
+                  id="new-jd"
+                  maxLength={20000}
                   value={form.jobDescription}
                   onChange={(e) => setForm({ ...form, jobDescription: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition resize-none"
@@ -363,8 +380,10 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="mb-5">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Notes</label>
+                <label htmlFor="new-notes" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Notes</label>
                 <textarea
+                  id="new-notes"
+                  maxLength={5000}
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition resize-none"
@@ -376,8 +395,8 @@ export default function DashboardPage() {
                 <ResumeSelect resumes={resumes} value={form.resumeId} onChange={(resumeId) => setForm({ ...form, resumeId })} />
               </div>
               <div className="flex gap-3">
-                <button type="submit" className="rounded-xl bg-violet-600 hover:bg-violet-700 px-5 py-2.5 text-white text-sm font-semibold transition-colors">
-                  Save Application
+                <button type="submit" disabled={saving} className="rounded-xl bg-violet-600 hover:bg-violet-700 px-5 py-2.5 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+                  {saving ? "Saving…" : "Save Application"}
                 </button>
                 <button type="button" onClick={() => setShowForm(false)} className="rounded-xl border border-slate-200 dark:border-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-500 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                   Cancel
@@ -400,13 +419,14 @@ export default function DashboardPage() {
             onStatusChange={updateStatus}
             onEdit={(id, data) => setApplications((prev) => prev.map((a) => a.id === id ? { ...a, ...data } : a))}
             onDelete={(id) => setApplications((prev) => prev.filter((a) => a.id !== id))}
+            onError={setActionError}
           />
         )}
 
         {/* Table card */}
         <div className={`bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden mb-8 ${view === "kanban" ? "hidden" : ""}`}>
           {loading ? (
-            <div className="flex items-center justify-center gap-3 py-20 text-slate-400 text-sm">
+            <div role="status" className="flex items-center justify-center gap-3 py-20 text-slate-400 text-sm">
               <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
@@ -457,7 +477,7 @@ export default function DashboardPage() {
                         <td className="px-4 sm:px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className={`w-9 h-9 rounded-xl ${avatarColor(app.company)} flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                              <span className="text-white text-sm font-bold">{app.company[0].toUpperCase()}</span>
+                              <span className="text-white text-sm font-bold" aria-hidden="true">{(app.company[0] ?? "?").toUpperCase()}</span>
                             </div>
                             <div className="min-w-0">
                               <p className="font-semibold text-slate-900 dark:text-white leading-tight truncate">{app.company}</p>
@@ -468,6 +488,7 @@ export default function DashboardPage() {
                         <td className="px-4 sm:px-6 py-4">
                           <select
                             value={app.status}
+                            aria-label={`Status for ${app.company}`}
                             onChange={(e) => updateStatus(app.id, e.target.value)}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500 appearance-none ${STATUS_COLORS[app.status]}`}
                           >
@@ -490,7 +511,9 @@ export default function DashboardPage() {
                               <button
                                 onClick={() => setExpandedRow(expandedRow === app.id ? null : app.id)}
                                 title="View details"
-                                className={`rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all opacity-0 group-hover:opacity-100 ${expandedRow === app.id ? "!opacity-100 text-slate-600 dark:text-slate-200 bg-slate-100 dark:bg-slate-700" : ""}`}
+                                aria-label={`View details for ${app.company}`}
+                                aria-expanded={expandedRow === app.id}
+                                className={`rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 ${expandedRow === app.id ? "sm:!opacity-100 text-slate-600 dark:text-slate-200 bg-slate-100 dark:bg-slate-700" : ""}`}
                               >
                                 <svg className={`w-4 h-4 transition-transform ${expandedRow === app.id ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -499,7 +522,8 @@ export default function DashboardPage() {
                               <button
                                 onClick={() => startEdit(app)}
                                 title="Edit"
-                                className={`rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all opacity-0 group-hover:opacity-100 ${editingRow === app.id ? "!opacity-100 text-slate-600 dark:text-slate-200 bg-slate-100 dark:bg-slate-700" : ""}`}
+                                aria-label={`Edit ${app.company}`}
+                                className={`rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 ${editingRow === app.id ? "sm:!opacity-100 text-slate-600 dark:text-slate-200 bg-slate-100 dark:bg-slate-700" : ""}`}
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -508,7 +532,8 @@ export default function DashboardPage() {
                               <button
                                 onClick={() => setDeletingRow(app.id)}
                                 title="Delete"
-                                className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all opacity-0 group-hover:opacity-100"
+                                aria-label={`Delete ${app.company}`}
+                                className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -519,7 +544,7 @@ export default function DashboardPage() {
                                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                                   activeAiRow === app.id
                                     ? "bg-violet-600 text-white shadow-sm"
-                                    : "bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50 opacity-0 group-hover:opacity-100"
+                                    : "bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                                 }`}
                               >
                                 {activeAiRow === app.id ? "✕ Close" : "✨ AI"}
@@ -537,27 +562,27 @@ export default function DashboardPage() {
                                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Edit Application</p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                   <div>
-                                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Company *</label>
-                                    <input required value={editForm.company} onChange={(e) => setEditForm({ ...editForm, company: e.target.value })} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
+                                    <label htmlFor={`edit-company-${app.id}`} className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Company *</label>
+                                    <input required id={`edit-company-${app.id}`} value={editForm.company} onChange={(e) => setEditForm({ ...editForm, company: e.target.value })} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Role *</label>
-                                    <input required value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
+                                    <label htmlFor={`edit-role-${app.id}`} className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Role *</label>
+                                    <input required id={`edit-role-${app.id}`} value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent" />
                                   </div>
                                 </div>
                                 <div className="mb-4">
-                                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Job Description</label>
-                                  <textarea value={editForm.jobDescription} onChange={(e) => setEditForm({ ...editForm, jobDescription: e.target.value })} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" rows={3} />
+                                  <label htmlFor={`edit-jobDescription-${app.id}`} className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Job Description</label>
+                                  <textarea id={`edit-jobDescription-${app.id}`} value={editForm.jobDescription} onChange={(e) => setEditForm({ ...editForm, jobDescription: e.target.value })} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" rows={3} />
                                 </div>
                                 <div className="mb-4">
-                                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Notes</label>
-                                  <textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" rows={2} />
+                                  <label htmlFor={`edit-notes-${app.id}`} className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Notes</label>
+                                  <textarea id={`edit-notes-${app.id}`} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none" rows={2} />
                                 </div>
                                 <div className="mb-4 sm:w-1/2">
                                   <ResumeSelect resumes={resumes} value={editForm.resumeId} onChange={(resumeId) => setEditForm({ ...editForm, resumeId })} />
                                 </div>
                                 <div className="flex gap-3">
-                                  <button type="submit" className="rounded-xl bg-violet-600 hover:bg-violet-700 px-4 py-2 text-white text-sm font-semibold transition-colors">Save Changes</button>
+                                  <button type="submit" disabled={saving} className="rounded-xl bg-violet-600 hover:bg-violet-700 px-4 py-2 text-white text-sm font-semibold transition-colors disabled:opacity-50">{saving ? "Saving…" : "Save Changes"}</button>
                                   <button type="button" onClick={() => setEditingRow(null)} className="rounded-xl border border-slate-200 dark:border-slate-600 px-4 py-2 text-sm font-semibold text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">Cancel</button>
                                 </div>
                               </form>
@@ -614,7 +639,7 @@ export default function DashboardPage() {
                             </div>
 
                             {aiLoading && (
-                              <div className="flex items-center gap-2 text-violet-500 text-sm py-2">
+                              <div role="status" className="flex items-center gap-2 text-violet-500 text-sm py-2">
                                 <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
@@ -654,6 +679,8 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
+
+        <DeleteAccount />
       </div>
     </div>
   );

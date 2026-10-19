@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import type { ResumeInfo } from "./ResumeUpload";
 import { ResumeSelect } from "./ResumeSelect";
+import { sendJson } from "@/lib/send-json";
 
 type Application = {
   id: string;
@@ -66,9 +67,10 @@ type Props = {
   onStatusChange: (id: string, status: string) => void;
   onEdit: (id: string, data: { company: string; role: string; jobDescription: string; notes: string; resumeId: string | null }) => void;
   onDelete: (id: string) => void;
+  onError: (message: string) => void;
 };
 
-export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDelete }: Props) {
+export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDelete, onError }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [modal, setModal] = useState<{ type: "edit" | "ai"; app: Application } | null>(null);
   const [editForm, setEditForm] = useState({ company: "", role: "", jobDescription: "", notes: "", resumeId: "" });
@@ -97,19 +99,17 @@ export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDe
   async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!modal) return;
-    await fetch(`/api/applications/${modal.app.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editForm),
-    });
+    const res = await sendJson(`/api/applications/${modal.app.id}`, "PATCH", editForm);
+    if (!res.ok) { onError(res.error); return; }
     onEdit(modal.app.id, { ...editForm, resumeId: editForm.resumeId || null });
     setModal(null);
   }
 
   async function handleDelete(id: string) {
-    await fetch(`/api/applications/${id}`, { method: "DELETE" });
-    onDelete(id);
+    const res = await sendJson(`/api/applications/${id}`, "DELETE");
     setDeletingId(null);
+    if (!res.ok) { onError(res.error); return; }
+    onDelete(id);
   }
 
   async function generateAi(feature: AiFeature) {
@@ -117,13 +117,8 @@ export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDe
     setAiFeature(feature);
     setAiContent(null);
     setAiLoading(true);
-    const res = await fetch(`/api/applications/${modal.app.id}/ai`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ feature }),
-    });
-    const data = await res.json();
-    setAiContent(data.content ?? data.error ?? "Something went wrong.");
+    const res = await sendJson(`/api/applications/${modal.app.id}/ai`, "POST", { feature });
+    setAiContent(res.ok ? (res.data as { content: string }).content || "No response was generated." : res.error);
     setAiLoading(false);
   }
 
@@ -202,10 +197,11 @@ export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDe
                                   </button>
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center gap-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity">
                                   <button
                                     onClick={() => openEdit(app)}
                                     title="Edit"
+                                    aria-label={`Edit ${app.company}`}
                                     className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -215,6 +211,7 @@ export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDe
                                   <button
                                     onClick={() => setDeletingId(app.id)}
                                     title="Delete"
+                                    aria-label={`Delete ${app.company}`}
                                     className="rounded-lg p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -250,17 +247,27 @@ export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDe
 
       {/* Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onKeyDown={(e) => { if (e.key === "Escape") setModal(null); }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kanban-modal-title"
+            className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+          >
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
               <div>
                 <p className="text-xs text-slate-400 font-medium">{modal.app.company} · {modal.app.role}</p>
-                <h2 className="font-semibold text-slate-900 dark:text-white">
+                <h2 id="kanban-modal-title" className="font-semibold text-slate-900 dark:text-white">
                   {modal.type === "edit" ? "Edit Application" : "✨ AI Assistant"}
                 </h2>
               </div>
               <button
                 onClick={() => setModal(null)}
+                aria-label="Close"
+                autoFocus
                 className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -274,18 +281,22 @@ export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDe
                 <form onSubmit={handleEdit}>
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Company *</label>
+                      <label htmlFor="kanban-edit-company" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Company *</label>
                       <input
+                        id="kanban-edit-company"
                         required
+                        maxLength={200}
                         value={editForm.company}
                         onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
                         className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Role *</label>
+                      <label htmlFor="kanban-edit-role" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Role *</label>
                       <input
+                        id="kanban-edit-role"
                         required
+                        maxLength={200}
                         value={editForm.role}
                         onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
                         className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
@@ -293,8 +304,9 @@ export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDe
                     </div>
                   </div>
                   <div className="mb-4">
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Job Description</label>
+                    <label htmlFor="kanban-edit-jobDescription" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Job Description</label>
                     <textarea
+                      id="kanban-edit-jobDescription"
                       value={editForm.jobDescription}
                       onChange={(e) => setEditForm({ ...editForm, jobDescription: e.target.value })}
                       className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
@@ -302,8 +314,9 @@ export function KanbanView({ applications, resumes, onStatusChange, onEdit, onDe
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Notes</label>
+                    <label htmlFor="kanban-edit-notes" className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Notes</label>
                     <textarea
+                      id="kanban-edit-notes"
                       value={editForm.notes}
                       onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
                       className="w-full rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3.5 py-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"

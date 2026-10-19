@@ -138,7 +138,10 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-slate-200 dark:border-slate-700 py-6 text-center mt-auto">
-        <p className="text-xs text-slate-400">Built with Next.js · Supabase · Clerk · Groq AI</p>
+        <p className="text-xs text-slate-400">
+          Built with Next.js · Supabase · Clerk · Groq AI ·{" "}
+          <Link href="/privacy" className="hover:text-violet-600 underline-offset-2 hover:underline">Privacy &amp; Cookies</Link>
+        </p>
       </footer>
 
     </div>

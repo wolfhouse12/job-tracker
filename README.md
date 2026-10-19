@@ -12,6 +12,17 @@ An AI-powered job application tracker. Log every application, manage your pipeli
 - **Multiple resumes** — upload several resumes (PDF or pasted text, e.g. "English CV" and "Hebrew CV"), record which one you sent with each application, and the AI tools use that resume for that job
 - **Analytics** — response rate, offer rate, and pipeline trends over time
 - **Dark mode** and a responsive mobile layout
+- **Account deletion** — one button removes the account, every application and every resume
+- **Privacy page** at `/privacy` covering what is stored, what is sent to the AI provider, and cookies
+
+## Security
+
+- **The server decides who you are.** Every API route reads the user from the Clerk session on the server and filters every query by that `userId`, so changing an id in a request can't reach another user's data. Linking a resume to an application also checks that the resume belongs to the caller.
+- **Input is validated on the server:** only known fields are accepted, status must be a real status, text fields have length limits, and uploads must actually be PDFs (checked by file signature, not file name).
+- **Database tables are locked.** Supabase exposes `public` tables through its REST API; this app doesn't use that API, so [`prisma/sql/lock-tables.sql`](prisma/sql/lock-tables.sql) enables row-level security and revokes all access from the API roles. Prisma connects as the table owner and is unaffected.
+- **No secrets in the browser.** Only the Clerk publishable key is public (it's designed to be). Database, Clerk secret and Groq keys are server-only, and error responses never include provider error details.
+- **Sign-out and deletion end the session on Clerk's servers**, not just in the browser.
+- Security headers (`X-Frame-Options`, `nosniff`, HSTS, `Referrer-Policy`, `Permissions-Policy`) are set in `next.config.ts`.
 
 ## Stack
 
@@ -48,7 +59,7 @@ An AI-powered job application tracker. Log every application, manage your pipeli
    GROQ_API_KEY=
    ```
 
-3. Push the Prisma schema to your database:
+3. Push the Prisma schema to your database, then lock the tables (Supabase → SQL Editor → run `prisma/sql/lock-tables.sql`):
 
    ```bash
    npx prisma db push
@@ -73,5 +84,8 @@ src/app/
   api/applications/[id]/ai/       # AI generation endpoint (cover letter, prep, follow-up, optimize)
   api/resume/                     # Resume list + upload/parsing
   api/resume/[id]/                # Delete a single resume
+  api/account/                    # Delete the account and all its data
+  privacy/                        # Privacy & cookies page
+src/lib/validation.ts              # Server-side input validation
 prisma/schema.prisma               # Application & Resume models
 ```

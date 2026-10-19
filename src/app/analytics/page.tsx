@@ -61,11 +61,16 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
 export default function AnalyticsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     fetch("/api/applications")
-      .then((r) => r.json())
-      .then((data) => { setApplications(data); setLoading(false); });
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load applications");
+        return r.json();
+      })
+      .then((data) => { setApplications(data); setLoading(false); })
+      .catch(() => { setLoadError(true); setLoading(false); });
   }, []);
 
   const total = applications.length;
@@ -136,12 +141,20 @@ export default function AnalyticsPage() {
       {/* Charts */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {loading ? (
-          <div className="flex items-center justify-center gap-3 py-20 text-slate-400 text-sm">
+          <div role="status" className="flex items-center justify-center gap-3 py-20 text-slate-400 text-sm">
             <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
             Loading...
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="font-semibold text-slate-700 dark:text-slate-200 mb-1">Couldn&apos;t load your analytics</p>
+            <p className="text-sm text-slate-400 mb-3">Something went wrong reaching the server.</p>
+            <button onClick={() => window.location.reload()} className="text-sm text-violet-600 hover:underline">
+              Try again
+            </button>
           </div>
         ) : total === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
