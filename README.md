@@ -2,14 +2,14 @@
 
 An AI-powered job application tracker. Log every application, manage your pipeline with a Kanban board, and use AI to generate cover letters, interview prep, follow-up emails, and resume feedback tailored to each role.
 
-**Live demo:** _add your Vercel URL here_
+**Live demo:** [job-tracker-eosin-two.vercel.app](https://job-tracker-eosin-two.vercel.app/)
 
 ## Features
 
 - **Auth** — sign up / sign in with Clerk
 - **Application tracking** — table and Kanban views across Applied, Phone Screen, Interview, Offer, Rejected
 - **AI tools** (Groq / Llama 3.3 70B) — generate a cover letter, interview prep questions, or a follow-up email for any application; get resume-optimization feedback matched to a specific job description
-- **Resume upload** — parses an uploaded PDF resume so the AI tools can personalize output
+- **Multiple resumes** — upload several resumes (PDF or pasted text, e.g. "English CV" and "Hebrew CV"), record which one you sent with each application, and the AI tools use that resume for that job
 - **Analytics** — response rate, offer rate, and pipeline trends over time
 - **Dark mode** and a responsive mobile layout
 
@@ -67,10 +67,11 @@ An AI-powered job application tracker. Log every application, manage your pipeli
 ```
 src/app/
   page.tsx                        # Landing page
-  dashboard/                      # Table + Kanban views, resume upload
+  dashboard/                      # Table + Kanban views, resume manager
   analytics/                      # Response/offer rate charts
-  api/applications/                # CRUD for applications
+  api/applications/               # CRUD for applications
   api/applications/[id]/ai/       # AI generation endpoint (cover letter, prep, follow-up, optimize)
-  api/resume/                     # Resume upload/parsing
+  api/resume/                     # Resume list + upload/parsing
+  api/resume/[id]/                # Delete a single resume
 prisma/schema.prisma               # Application & Resume models
 ```
